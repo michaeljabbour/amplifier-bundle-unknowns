@@ -1,0 +1,30 @@
+[project]
+name = "amplifier-module-tool-unknowns"
+version = "0.1.0"
+description = "Agent-callable tool over the unknowns map deterministic core (leverage level L3)."
+requires-python = ">=3.11"
+license = { text = "MIT" }
+# amplifier-core is a peer dependency -- do NOT declare it here.
+# The lib is a direct git dep so the module works when installed standalone;
+# in-repo dev falls back to a sys.path shim (see __init__.py).
+dependencies = [
+    "amplifier-unknowns @ git+https://github.com/michaeljabbour/amplifier-bundle-unknowns@main",
+]
+
+[project.entry-points."amplifier.modules"]
+tool-unknowns = "amplifier_module_tool_unknowns:mount"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.metadata]
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["amplifier_module_tool_unknowns"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"

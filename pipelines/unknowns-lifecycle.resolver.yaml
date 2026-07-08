@@ -1,0 +1,30 @@
+# unknowns-lifecycle.resolver.yaml
+#
+# Sidecar manifest for unknowns-lifecycle.dot. Declares this pipeline to the
+# Amplifier Resolve dot-graph resolver so it appears in the picker with a
+# typed form (same convention as wiki-weaver's build-dashboard.resolver.yaml).
+#
+# Params are seeded into the pipeline engine's context at dispatch time; the
+# engine substitutes $goal into the DOT before execution.
+#
+# Note: unlike a pure-CLI pipeline, this graph contains LLM box nodes and
+# human approval gates (hexagons) -- the engine pauses at gates for input.
+# The deterministic triage guard shells scripts/dominant_quadrant.sh (or the
+# `unknowns triage` CLI when the amplifier-unknowns package is installed).
+
+name: "Unknowns Lifecycle"
+description: >
+  Close the map/territory gap for a goal. Seeds .ai/unknowns-map.dot
+  (cartography), triages the dominant quadrant deterministically, routes to
+  the matching technique (blindspot pass / prototype fan-out / interview),
+  gates a decision-first plan on human approval, then implements and
+  finishes with a change-report quiz graded against the map deltas.
+pipeline: unknowns-lifecycle.dot
+params:
+  goal:
+    input: shortText
+    label: "Goal"
+    description: >
+      The task or goal whose unknowns you want mapped and resolved --
+      one line, e.g. "migrate the session store from Redis to Postgres".
+    required: true

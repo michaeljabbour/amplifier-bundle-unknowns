@@ -37,6 +37,12 @@ meta:
     of truth.</commentary>
     </example>
   model_role: [reasoning, general]
+# Deterministic map operations (leverage level L3): seed / add / reclassify /
+# triage / prune / render without hand-editing the DOT. Same self-reference
+# pattern as the behavior's skills wiring -- resolves from @main once pushed.
+tools:
+  - module: tool-unknowns
+    source: git+https://github.com/michaeljabbour/amplifier-bundle-unknowns@main#subdirectory=modules/tool-unknowns
 ---
 
 # Unknowns Cartographer
@@ -49,6 +55,12 @@ spawned.
 
 @unknowns:context/unknowns-matrix.md
 @unknowns:context/ascii-render-spec.md
+
+**Prefer the `unknowns_map` tool** (when mounted) for deterministic map
+operations -- seed, add, reclassify, triage, prune, ASCII render. It applies
+the node-attr schema exactly and never corrupts the DOT. Fall back to manual
+edits only when the tool is unavailable; you decide WHAT to record, the tool
+records it.
 
 ## Workflow
 

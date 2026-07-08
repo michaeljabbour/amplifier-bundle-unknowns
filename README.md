@@ -30,7 +30,33 @@ something moved through the quadrants is the point.
 
 ## Quick start
 
-Include this bundle (composes onto foundation):
+Compose the **behavior** into your own bundle. The behavior
+(`behaviors/unknowns.yaml`) is the reusable capability -- the agents, the
+`/interview` mode, the `/blindspot` and `/unknownfinder` skills, and the
+always-on awareness context -- and nothing else. It is the right include for
+almost every use:
+
+```yaml
+includes:
+  # foundation + attractor provide run_pipeline; this bundle depends on them.
+  - bundle: git+https://github.com/michaeljabbour/amplifier-bundle-unknowns@main#subdirectory=behaviors/unknowns.yaml
+```
+
+> **Include the behavior, not the root bundle.** `@main` (no fragment)
+> resolves the *root* bundle (`bundle.md`), which additionally pulls in
+> foundation and attractor's *interactive* entry point to stand up a
+> ready-to-run session. That is what you want when you run this bundle
+> **standalone** (below) -- but when you are **composing unknowns into an
+> existing bundle**, the root include re-runs foundation's own includes a
+> second time and drags in an interactive orchestrator you already have. The
+> `#subdirectory=behaviors/unknowns.yaml` form gives you the capability
+> without the entry-point baggage.
+
+### Run it standalone
+
+To use this bundle *as* your session (not composed into another), point
+Amplifier at the root bundle -- there the entry-point wiring is exactly what
+you want:
 
 ```yaml
 includes:
@@ -77,11 +103,39 @@ Render the lifecycle diagram yourself at any time:
 dot -Tpng pipelines/unknowns-lifecycle.dot -o pipelines/unknowns-lifecycle.png
 ```
 
+## Leverage levels
+
+The lifecycle logic has ONE home -- the DOT pipeline + agent prompts (LLM
+logic) and the `unknowns_map` package (deterministic map operations). Every
+consumption surface is a thin adapter over that home, following the
+[wiki-weaver](https://github.com/microsoft/amplifier-app-wiki-weaver) pattern:
+
+| Level | Surface | Consumer |
+|---|---|---|
+| L1 | `pipelines/unknowns-lifecycle.dot` (+ `.resolver.yaml` sidecar) | attractor `run_pipeline`, Amplifier Resolve |
+| L2 | `unknowns_map` Python package (`pip install amplifier-unknowns`) | other codebases: `import unknowns_map` |
+| L3 | `modules/tool-unknowns` (agent-callable `unknowns_map` tool) | agents (wired into the cartographer) |
+| L4 | `unknowns` CLI (`pipx/uv tool install amplifier-unknowns`) | humans, scripts, and L1 guards |
+
+```bash
+uv tool install "git+https://github.com/michaeljabbour/amplifier-bundle-unknowns@main"
+unknowns seed "migrate session store to Postgres"   # fresh .ai/unknowns-map.dot
+unknowns add ku "which retention policy?" --severity high
+unknowns status                                      # terminal 2x2
+unknowns triage                                      # uu | uk | ku | clear (guard contract)
+```
+
+The deterministic core is stdlib-only. `scripts/dominant_quadrant.sh` remains
+the zero-dependency shell mirror of `unknowns triage` for bare environments --
+`tests/test_triage_contract.py` asserts the two never drift. The engine seam
+(`unknowns run <goal>`) needs the `[engine]` extra plus a configured Amplifier
+install.
+
 ## File tour
 
 | Path | What it is |
 |---|---|
-| `bundle.md` | Root bundle: includes foundation + attractor's interactive entry point + this bundle's own behavior |
+| `bundle.md` | Root bundle (standalone entry point): includes foundation + attractor's interactive entry point + this bundle's own behavior. **Composing into another bundle? Include `behaviors/unknowns.yaml` instead** -- see Quick start. |
 | `behaviors/unknowns.yaml` | The reusable capability: agent, mode wiring, skill wiring, always-on awareness context (the single source of the awareness file -- it is deliberately NOT also `@mention`ed in `bundle.md`) |
 | `context/unknowns-awareness.md` | Always-on, <500-token pointer: map-vs-territory framing + triggers table |
 | `context/unknowns-matrix.md` | Heavy methodology reference -- loaded only by the cartographer agent |
@@ -93,7 +147,12 @@ dot -Tpng pipelines/unknowns-lifecycle.dot -o pipelines/unknowns-lifecycle.png
 | `skills/blindspot-pass/SKILL.md` | `/blindspot` -- inline skill (must converse with the user; cannot be a fork skill) |
 | `skills/unknownfinder/SKILL.md` | `/unknownfinder` -- thin slash alias for the `unknownfinder` agent (one method, two entry points -- the skill delegates, it does not re-implement) |
 | `pipelines/unknowns-lifecycle.dot` | The full pre/during/post lifecycle as an attractor pipeline |
-| `scripts/dominant_quadrant.sh` | Deterministic shell guard: counts open unknowns per quadrant, routes the pipeline's triage node |
+| `scripts/dominant_quadrant.sh` | Deterministic shell guard: counts open unknowns per quadrant, routes the pipeline's triage node (zero-dep mirror of `unknowns triage`, contract-tested) |
+| `pipelines/unknowns-lifecycle.resolver.yaml` | Resolve sidecar manifest: registers the lifecycle in the dot-graph resolver picker (L1) |
+| `unknowns_map/` | Python package: deterministic map ops + `engine_runner` seam + `unknowns` CLI (L2/L4) |
+| `modules/tool-unknowns/` | Agent-callable `unknowns_map` tool module over the lib (L3) |
+| `pyproject.toml` | Packaging for `amplifier-unknowns` (console script `unknowns`; wheel force-includes the pipeline + template assets) |
+| `tests/` | Deterministic-core tests incl. the shell/Python triage drift guard |
 | `AGENTS.md` | How to work in this repo: validation commands, diagram regeneration, known pitfalls |
 | `bundle.dot` / `bundle.png` | Auto-generated structural diagram of the bundle (bundle-to-dot v3; regenerate after structural changes -- see `AGENTS.md`) |
 | `docs/` | Local-only, **gitignored**: reference copy of the original article, its images, and the source DOT sketches (not redistributed) |

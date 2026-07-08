@@ -1,0 +1,47 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "amplifier-unknowns"
+version = "0.1.0"
+description = "Deterministic core + CLI + engine seam for the unknowns map (amplifier-bundle-unknowns leverage levels L2/L4)."
+requires-python = ">=3.11"
+license = { text = "MIT" }
+authors = [{ name = "Michael Jabbour" }]
+# The deterministic core is stdlib-only ON PURPOSE -- the L1 pipeline guard
+# and L4 CLI must work in bare environments. The attractor engine seam
+# (unknowns_map.engine_runner.run_lifecycle) needs the [engine] extra plus a
+# configured Amplifier install (API keys, bundle cache).
+dependencies = []
+
+[project.optional-dependencies]
+engine = [
+    "amplifier-foundation @ git+https://github.com/microsoft/amplifier-foundation@main",
+]
+
+[project.urls]
+Repository = "https://github.com/michaeljabbour/amplifier-bundle-unknowns"
+
+[project.scripts]
+unknowns = "unknowns_map.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8"]
+
+[tool.hatch.metadata]
+# Required so hatchling builds a wheel whose optional deps use direct git URLs.
+allow-direct-references = true
+
+[tool.hatch.build.targets.wheel]
+packages = ["unknowns_map"]
+
+# Ship the L1 assets inside the wheel so the lib/CLI work when pip-installed
+# (dual-path resolution in unknowns_map/_assets.py).
+[tool.hatch.build.targets.wheel.force-include]
+"pipelines" = "unknowns_map_assets/pipelines"
+"context/map-template.dot" = "unknowns_map_assets/map-template.dot"
+"scripts/dominant_quadrant.sh" = "unknowns_map_assets/scripts/dominant_quadrant.sh"
+
+[tool.pytest.ini_options]
+testpaths = ["tests", "modules/tool-unknowns/tests"]
