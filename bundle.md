@@ -10,6 +10,9 @@ bundle:
     DOT artifact (.ai/unknowns-map.dot) that every technique reads and writes.
 
     Entry points:
+      /unknownfinder -- one-shot full-spectrum discovery: the complete
+                       4-quadrant map from a goal (also delegable as the
+                       unknowns:unknownfinder agent)
       /blindspot    -- surface unknown-unknowns before starting unfamiliar work
       /interview    -- resolve known-unknowns one question at a time
       unknowns:pipelines/unknowns-lifecycle.dot -- full pre/during/post lifecycle,
@@ -32,9 +35,9 @@ includes:
 Find and resolve unknowns before they get expensive to fix -- the gap between
 your prompt (the map) and the codebase/reality (the territory). Quick start
 and composition notes: unknowns:README.md (read on demand -- not eagerly
-loaded). The always-on framing this session carries lives below.
-
-@unknowns:context/unknowns-awareness.md
+loaded). The always-on framing this session carries is provided by the
+unknowns:behaviors/unknowns behavior via context.include
+(context/unknowns-awareness.md) -- not duplicated here.
 
 ---
 

@@ -34,10 +34,26 @@ Include this bundle (composes onto foundation):
 
 ```yaml
 includes:
-  - bundle: git+https://github.com/YOUR_ORG/amplifier-bundle-unknowns@main
+  - bundle: git+https://github.com/michaeljabbour/amplifier-bundle-unknowns@main
 ```
 
 Then, in conversation:
+
+```
+/unknownfinder I'm adding a new OIDC auth provider but know nothing about this codebase's auth module.
+```
+
+One-shot full-spectrum discovery: returns the complete 4-quadrant map with
+prioritized unknowns and a recommended next technique. The same method is
+delegable from any composing session as the **`unknowns:unknownfinder`**
+agent:
+
+```
+delegate(agent="unknowns:unknownfinder",
+         instruction="Find the unknowns for: <goal>")
+```
+
+Go deeper with the focused techniques:
 
 ```
 /blindspot
@@ -66,16 +82,21 @@ dot -Tpng pipelines/unknowns-lifecycle.dot -o pipelines/unknowns-lifecycle.png
 | Path | What it is |
 |---|---|
 | `bundle.md` | Root bundle: includes foundation + attractor's interactive entry point + this bundle's own behavior |
-| `behaviors/unknowns.yaml` | The reusable capability: agent, mode wiring, skill wiring, always-on awareness context |
+| `behaviors/unknowns.yaml` | The reusable capability: agent, mode wiring, skill wiring, always-on awareness context (the single source of the awareness file -- it is deliberately NOT also `@mention`ed in `bundle.md`) |
 | `context/unknowns-awareness.md` | Always-on, <500-token pointer: map-vs-territory framing + triggers table |
 | `context/unknowns-matrix.md` | Heavy methodology reference -- loaded only by the cartographer agent |
 | `context/map-template.dot` | Seed template for a fresh `.ai/unknowns-map.dot`, with the node-attr schema documented inline |
 | `context/ascii-render-spec.md` | Terminal 2x2 rendering spec, with a worked example |
 | `agents/unknowns-cartographer.md` | Context-sink agent that owns `.ai/unknowns-map.dot` |
+| `agents/unknownfinder.md` | One-shot full-spectrum discovery method (`unknowns:unknownfinder`) -- populates all four quadrants from a goal + territory survey |
 | `modes/interview.md` | `/interview` -- one-question-at-a-time, read-only tools, architecture-impact priority |
 | `skills/blindspot-pass/SKILL.md` | `/blindspot` -- inline skill (must converse with the user; cannot be a fork skill) |
+| `skills/unknownfinder/SKILL.md` | `/unknownfinder` -- thin slash alias for the `unknownfinder` agent (one method, two entry points -- the skill delegates, it does not re-implement) |
 | `pipelines/unknowns-lifecycle.dot` | The full pre/during/post lifecycle as an attractor pipeline |
 | `scripts/dominant_quadrant.sh` | Deterministic shell guard: counts open unknowns per quadrant, routes the pipeline's triage node |
+| `AGENTS.md` | How to work in this repo: validation commands, diagram regeneration, known pitfalls |
+| `bundle.dot` / `bundle.png` | Auto-generated structural diagram of the bundle (bundle-to-dot v3; regenerate after structural changes -- see `AGENTS.md`) |
+| `docs/` | Local-only, **gitignored**: reference copy of the original article, its images, and the source DOT sketches (not redistributed) |
 
 ## Composes with
 
@@ -93,8 +114,19 @@ dot -Tpng pipelines/unknowns-lifecycle.dot -o pipelines/unknowns-lifecycle.png
   (`hexagon`) mechanism used by every gate in the lifecycle, and the DOT
   execution engine itself.
 
+## Bundle structure at a glance
+
+![Bundle structure](bundle.png)
+
+Generated per the bundle-to-dot v3 convention (`bundle.dot` embeds a
+`source_hash` for freshness). Regeneration instructions live in `AGENTS.md`.
+
 ## Credit
 
 Thariq ([@trq212](https://x.com/trq212)), Claude Code @ Anthropic --
 ["A Field Guide to Fable: Finding Your Unknowns"](https://x.com/trq212/status/2073100352921215386),
 published July 3, 2026.
+
+A reference copy of the article and its images is kept locally in `docs/`
+(gitignored -- the original content is Thariq's and is not redistributed
+with this repo; follow the link above for the published version).

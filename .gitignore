@@ -3,6 +3,12 @@
 *.png
 *.svg
 
+# Bundle documentation diagram (bundle-to-dot v3 convention) IS versioned
+!bundle.png
+
+# Local reference material (original article + images) -- not redistributed
+docs/
+
 # Python
 __pycache__/
 *.pyc

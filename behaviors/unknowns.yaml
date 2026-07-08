@@ -7,6 +7,10 @@ bundle:
     Provides:
     - unknowns-cartographer agent (context sink for the 4-quadrant matrix;
       seeds, updates, and renders .ai/unknowns-map.dot)
+    - unknownfinder agent (one-shot full-spectrum discovery: populates all
+      four quadrants from a goal + territory survey)
+    - /unknownfinder skill (thin slash alias that delegates to the
+      unknownfinder agent -- same method, two entry points)
     - /interview mode (one-question-at-a-time, read-only tools)
     - /blindspot skill (inline -- must converse with the user, so it cannot
       be a fork skill)
@@ -37,12 +41,17 @@ tools:
   - module: tool-skills
     source: git+https://github.com/microsoft/amplifier-bundle-skills@main#subdirectory=modules/tool-skills
     config:
+      # NOTE: tool-skills resolves git URLs / local paths only -- it has NO
+      # @mention resolution (unlike hooks-mode above). A "@unknowns:skills"
+      # entry is silently ignored; use the git self-reference form instead
+      # (same pattern as the gitea and digital-twin-universe bundles).
       skills:
-        - "@unknowns:skills"
+        - "git+https://github.com/michaeljabbour/amplifier-bundle-unknowns@main#subdirectory=skills"
 
 agents:
   include:
     - unknowns:unknowns-cartographer
+    - unknowns:unknownfinder
 
 context:
   include:
