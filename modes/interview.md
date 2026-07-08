@@ -73,7 +73,7 @@ After each answer:
 Exit when the user says they've had enough, or when no `severity=high`
 `status=open` known-unknown node remains on the map. On exit:
 - Summarize every known-unknown resolved this session, one line each.
-- Render the updated ASCII 2x2 (via the cartographer, or note that the
+- Render the updated terminal briefing (via the cartographer, or note that the
   parent session should request a re-render).
 - Recommend the next step: return to planning, or run `/blindspot` if the
   conversation surfaced something that looks like an unknown-unknown

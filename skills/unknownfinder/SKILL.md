@@ -31,7 +31,7 @@ $ARGUMENTS
    If `$ARGUMENTS` is empty, ask the user one question -- "What's the goal
    or task you want the unknowns mapped for?" -- then delegate.
 
-2. **Relay the full result.** Show the user the agent's ASCII 2x2 map, the
+2. **Relay the full result.** Show the user the agent's terminal briefing, the
    prioritized unknowns list, and the recommended next technique verbatim.
    Do not summarize away the severity tags or the why-it-matters lines --
    they are the point.

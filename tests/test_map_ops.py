@@ -89,14 +89,39 @@ def test_prune_placeholders(seeded: Path):
     assert "->" not in seeded.read_text()  # example edges gone too
 
 
-def test_render_ascii_smoke(seeded: Path):
+def test_render_briefing_smoke(seeded: Path):
     map_ops.prune_placeholders(seeded)
+    map_ops.add_unknown(seeded, "kk", "user wants a rate limiter", status="given")
     map_ops.add_unknown(seeded, "ku", "token refresh strategy", severity="high")
+    map_ops.add_unknown(seeded, "uu", "legacy SAML users exist")
     out = map_ops.render_ascii(seeded)
-    assert "KNOWN KNOWNS" in out and "UNKNOWN UNKNOWNS" in out
-    assert "! token refresh strategy" in out
-    assert "1 open / 1 total unknowns" in out
+    # Plain-language sections, no quadrant jargon
+    assert "Open questions you know about (1)" in out
+    assert "Blindspots surfaced (1)" in out
+    assert "KNOWN UNKNOWNS" not in out and "quadrant" not in out
+    # High severity marked, continuous numbering, start-here on dominant section
+    assert "!! 1. token refresh strategy" in out
+    assert "<- start here" in out
+    # Header progress + NEXT action derived from triage (uu-high -> blindspot)
+    assert "2 open / 3 total" in out
+    assert "NEXT -> " in out and "blindspot pass" in out
     assert max(len(line) for line in out.splitlines()) <= 78
+
+
+def test_render_briefing_wraps_never_truncates(seeded: Path):
+    map_ops.prune_placeholders(seeded)
+    long_desc = (
+        "If the gateway runs multiple replicas, in-memory counters drift and "
+        "your limits silently multiply unless state is shared, for example "
+        "via Redis or another shared store"
+    )
+    map_ops.add_unknown(seeded, "ku", long_desc)
+    out = map_ops.render_ascii(seeded)
+    assert max(len(line) for line in out.splitlines()) <= 78
+    # Rejoin wrapped lines: the full sentence survives, nothing elided
+    flat = " ".join(part.strip() for part in out.splitlines())
+    assert "silently multiply" in flat and "shared store" in flat
+    assert "\u2026" not in out and "..." not in out.replace("... and", "")
 
 
 def test_render_ascii_missing_map(tmp_path: Path):

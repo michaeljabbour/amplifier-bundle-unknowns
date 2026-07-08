@@ -13,7 +13,9 @@ Agentic work quality is bottlenecked by unknowns -- gaps between your prompt
 Before non-trivial work, delegate to `unknowns:unknowns-cartographer` to seed
 and render `.ai/unknowns-map.dot` -- a 4-quadrant DOT graph -- so the user
 sees the territory *before* any technique runs. The cartographer always
-renders an ASCII 2x2 in its response, plus a PNG when graphviz is available.
+renders a plain-language terminal briefing in its response (numbered open
+questions ending with a NEXT step), plus the 2x2 PNG when graphviz is
+available.
 
 ## Triggers
 

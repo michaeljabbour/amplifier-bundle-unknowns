@@ -112,7 +112,7 @@ def main(argv: list[str] | None = None) -> int:
     _add_map_arg(p)
     p.set_defaults(fn=_cmd_seed)
 
-    p = sub.add_parser("status", help="render the terminal 2x2 view of the map")
+    p = sub.add_parser("status", help="render the plain-language briefing view of the map")
     _add_map_arg(p)
     p.set_defaults(fn=_cmd_status)
 

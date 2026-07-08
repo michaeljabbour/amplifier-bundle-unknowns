@@ -2,7 +2,8 @@
 
 This module is the SINGLE Python home for the map's deterministic logic:
 parsing, quadrant counts, triage precedence, seeding, node add/reclassify,
-and the terminal ASCII 2x2 render (per unknowns:context/ascii-render-spec.md).
+and the plain-language terminal briefing render (per
+unknowns:context/ascii-render-spec.md).
 
 The zero-dependency shell mirror ``scripts/dominant_quadrant.sh`` implements
 the SAME triage precedence for environments without this package installed
@@ -261,81 +262,112 @@ def prune_placeholders(map_path: Path | str) -> int:
 
 
 # ---------------------------------------------------------------------------
-# ASCII render (unknowns:context/ascii-render-spec.md)
+# Terminal briefing render (unknowns:context/ascii-render-spec.md)
+#
+# The terminal render is a plain-language BRIEFING, not a grid: the 2x2
+# matrix visual belongs to the PNG (`unknowns png`). Rules: wrap, never
+# truncate; no quadrant jargon (kk/ku/uk/uu stay internal); every render
+# ends with a NEXT step derived from the triage token.
 # ---------------------------------------------------------------------------
 
-_CELL = 34  # inner text width per column (fixed 78-col-safe fallback)
+_WIDTH = 78
+
+_SECTION_TITLES = {
+    "ku": "Open questions you know about",
+    "uk": "Things you'd recognize but haven't said",
+    "uu": "Blindspots surfaced",
+}
+
+_NEXT_LINES = {
+    "ku": 'Answer the numbered questions under "Open questions" -- '
+          'say "interview me" to go one at a time.',
+    "uk": "These are preferences you'll recognize on sight but can't describe "
+          "yet -- ask for a quick prototype fan-out and react to options.",
+    "uu": 'Probe the blindspots before planning -- say "blindspot pass" to dig '
+          "into them; a high-severity one can reshape the whole approach.",
+    "clear": "No open unknowns -- proceed to planning.",
+}
+
+import textwrap as _textwrap
 
 
-def _fit(text: str, width: int) -> str:
-    if len(text) > width:
-        return text[: width - 1] + "\u2026"
-    return text.ljust(width)
+def _task_title(map_path: Path) -> str:
+    """Extract the task description from the graph title, if present."""
+    try:
+        m = re.search(r'task:\s*([^"\\]+)"', map_path.read_text())
+        return m.group(1).strip() if m else ""
+    except OSError:
+        return ""
 
 
-def _items(nodes: list[Unknown], quadrant: str) -> list[str]:
-    open_nodes = [n for n in nodes if n.quadrant == quadrant and n.status == "open"]
-    open_nodes.sort(key=lambda n: _SEVERITY_ORDER.get(n.severity, 3))
-    out = []
-    for n in open_nodes[:3]:
-        prefix = "! " if n.severity == "high" else "  "
-        out.append(prefix + n.desc)
-    return out
+def _wrap_item(text: str, first_prefix: str) -> list[str]:
+    cont = " " * len(first_prefix)
+    return _textwrap.wrap(
+        text, width=_WIDTH, initial_indent=first_prefix, subsequent_indent=cont
+    ) or [first_prefix.rstrip()]
 
 
 def render_ascii(map_path: Path | str = DEFAULT_MAP) -> str:
-    """Terminal 2x2: KK top-left, KU top-right, UK bottom-left,
-    UU bottom-right with heavy/double border (the danger quadrant)."""
-    nodes = parse_map(map_path)
+    """Plain-language terminal briefing of the map.
+
+    Sections: settled items first, then the three open-unknown sections in
+    reading order (known unknowns, unknown knowns, unknown unknowns) with
+    continuous numbering, `!!` marking high severity, and a `start here`
+    marker on the triage-dominant section. Ends with `NEXT ->`.
+    """
+    path = Path(map_path)
+    nodes = parse_map(path)
     if not nodes:
         return "(no unknowns map found -- seed one with `unknowns seed <task>`)"
     c = quadrant_counts(nodes)
-
-    kk_items = _items(nodes, "kk") or ["(all given, nothing open)"]
-    ku_items = _items(nodes, "ku") or ["(none)"]
-    uk_items = _items(nodes, "uk") or ["(none)"]
-    uu_items = _items(nodes, "uu") or ["(none)"]
-
-    def hdr(ch_l: str, fill: str, ch_m: str, ch_r: str, t1: str, t2: str) -> str:
-        left = f"{ch_l}{fill} {t1} "
-        left += fill * (_CELL + 2 - (len(left) - 1))
-        right = f"{ch_m}{fill} {t2} " if t2 else ch_m
-        right += fill * (_CELL + 2 - (len(right) - 1))
-        return left + right + ch_r
-
-    def row(l_text: str, r_text: str, r_heavy: bool = False) -> str:
-        rv = "\u2551" if r_heavy else "\u2502"
-        return f"\u2502 {_fit(l_text, _CELL)} {rv} {_fit(r_text, _CELL)} {rv}"
-
-    top = hdr("\u250c", "\u2500", "\u252c",
-              "\u2510",
-              f"{QUADRANT_TITLES['kk']} ({c['kk']['open']} open)",
-              f"{QUADRANT_TITLES['ku']} ({c['ku']['open']} open)")
-
-    top_rows = []
-    for i in range(max(len(kk_items), len(ku_items))):
-        top_rows.append(row(kk_items[i] if i < len(kk_items) else "",
-                            ku_items[i] if i < len(ku_items) else ""))
-
-    # Middle divider: plain on the left, heavy opening for the UU cell.
-    mid_left = "\u251c" + "\u2500" * (_CELL + 2)
-    uu_title = f" {QUADRANT_TITLES['uu']} ({c['uu']['open']} open) "
-    mid_right = "\u2554\u2550" + uu_title
-    mid_right += "\u2550" * (_CELL + 2 - (len(mid_right) - 1)) + "\u2557"
-    mid = mid_left + mid_right
-
-    bottom_left = [f"{QUADRANT_TITLES['uk']} ({c['uk']['open']} open)"] + uk_items
-    bottom_rows = []
-    for i in range(max(len(bottom_left), len(uu_items))):
-        bottom_rows.append(row(bottom_left[i] if i < len(bottom_left) else "",
-                               uu_items[i] if i < len(uu_items) else "",
-                               r_heavy=True))
-
-    bot = ("\u2514" + "\u2500" * (_CELL + 2)
-           + "\u255a" + "\u2550" * (_CELL + 2) + "\u255d")
-
     total = sum(c[q]["total"] for q in QUADRANTS)
     open_n = sum(c[q]["open"] for q in QUADRANTS)
-    footer = f"  {open_n} open / {total} total unknowns"
+    token = dominant_quadrant(path)
 
-    return "\n".join([top, *top_rows, mid, *bottom_rows, bot, footer])
+    lines: list[str] = []
+
+    # Header: title left, iceberg progress right.
+    title = _task_title(path)
+    left = f"UNKNOWNS -- {title}" if title else "UNKNOWNS"
+    right = f"{open_n} open / {total} total"
+    if len(left) + len(right) + 2 > _WIDTH:
+        lines.append(left)
+        lines.append(right.rjust(_WIDTH))
+    else:
+        lines.append(left + " " * (_WIDTH - len(left) - len(right)) + right)
+
+    # Settled: known knowns plus anything already resolved.
+    settled_kk = [n for n in nodes if n.quadrant == "kk" and n.status != "open"]
+    resolved = [n for n in nodes if n.quadrant != "kk" and n.status == "resolved"]
+    lines.append("")
+    lines.append("Settled (what you've told me, plus anything already resolved)")
+    if not settled_kk and not resolved:
+        lines.append("  (nothing yet)")
+    for n in settled_kk[:6]:
+        lines.extend(_wrap_item(n.desc, "  * "))
+    for n in resolved[:6]:
+        lines.extend(_wrap_item(n.desc + " (resolved)", "  + "))
+    hidden = max(0, len(settled_kk) - 6) + max(0, len(resolved) - 6)
+    if hidden:
+        lines.append(f"  ... and {hidden} more")
+
+    # Open sections with continuous numbering.
+    num = 1
+    for q in ("ku", "uk", "uu"):
+        open_items = [n for n in nodes if n.quadrant == q and n.status == "open"]
+        open_items.sort(key=lambda n: _SEVERITY_ORDER.get(n.severity, 3))
+        header = f"{_SECTION_TITLES[q]} ({len(open_items)})"
+        if token == q and open_items:
+            header += "   <- start here"
+        lines.append("")
+        lines.append(header)
+        if not open_items:
+            lines.append("  (none)")
+        for n in open_items:
+            mark = "!!" if n.severity == "high" else "  "
+            lines.extend(_wrap_item(n.desc, f" {mark} {num}. "))
+            num += 1
+
+    lines.append("")
+    lines.extend(_wrap_item(_NEXT_LINES[token], "NEXT -> "))
+    return "\n".join(lines)

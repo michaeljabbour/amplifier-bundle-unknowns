@@ -23,7 +23,7 @@ unknown knowns, unknown unknowns); each unknown is a node tagged
 `quadrant=`/`status=`/`severity=`, and dashed reclassification edges record
 which technique moved it. The `unknowns:unknowns-cartographer` agent owns
 this file: it seeds it from your prompt and a repo scan, renders it as an
-ASCII 2x2 in every response (so you see the territory *before* any
+plain-language briefing in every response (so you see the territory *before* any
 technique runs), and updates it as unknowns get resolved. Nothing is ever
 deleted -- `resolved` is a status, not a disappearance; the history of how
 something moved through the quadrants is the point.
@@ -121,7 +121,7 @@ consumption surface is a thin adapter over that home, following the
 uv tool install "git+https://github.com/michaeljabbour/amplifier-bundle-unknowns@main"
 unknowns seed "migrate session store to Postgres"   # fresh .ai/unknowns-map.dot
 unknowns add ku "which retention policy?" --severity high
-unknowns status                                      # terminal 2x2
+unknowns status                                      # terminal briefing
 unknowns triage                                      # uu | uk | ku | clear (guard contract)
 ```
 
@@ -140,7 +140,7 @@ install.
 | `context/unknowns-awareness.md` | Always-on, <500-token pointer: map-vs-territory framing + triggers table |
 | `context/unknowns-matrix.md` | Heavy methodology reference -- loaded only by the cartographer agent |
 | `context/map-template.dot` | Seed template for a fresh `.ai/unknowns-map.dot`, with the node-attr schema documented inline |
-| `context/ascii-render-spec.md` | Terminal 2x2 rendering spec, with a worked example |
+| `context/ascii-render-spec.md` | Terminal briefing render spec (plain language, wrap-never-truncate, NEXT step), with a worked example |
 | `agents/unknowns-cartographer.md` | Context-sink agent that owns `.ai/unknowns-map.dot` |
 | `agents/unknownfinder.md` | One-shot full-spectrum discovery method (`unknowns:unknownfinder`) -- populates all four quadrants from a goal + territory survey |
 | `modes/interview.md` | `/interview` -- one-question-at-a-time, read-only tools, architecture-impact priority |

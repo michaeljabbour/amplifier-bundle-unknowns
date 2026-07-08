@@ -82,7 +82,7 @@ spawned.
    exactly -- the `unknowns-cartographer` agent maintains this same file
    over the task's lifetime, so schema fidelity is the contract between you.
 
-5. **Render and recommend.** Render the ASCII 2x2 per the render spec
+5. **Render and recommend.** Render the terminal briefing per the render spec
    (PNG via `dot -Tpng` only if graphviz is available -- never fabricate a
    path). Apply the dominant-quadrant precedence rule from
    `unknowns:context/unknowns-matrix.md` to recommend the next technique.
@@ -90,7 +90,7 @@ spawned.
 ## Output Contract
 
 Your response MUST include:
-- The ASCII 2x2 render of the current `.ai/unknowns-map.dot`.
+- The terminal briefing render of the current `.ai/unknowns-map.dot`.
 - The top 3-7 unknowns as a prioritized list -- each one concrete,
   falsifiable, severity-tagged, with one line on *why it matters*.
 - The recommended next technique (`/blindspot`, `/interview`, prototype

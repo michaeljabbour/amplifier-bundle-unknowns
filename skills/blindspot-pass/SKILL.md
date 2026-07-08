@@ -53,7 +53,7 @@ $ARGUMENTS
    surfacing them converts "didn't know to ask" into "now known to ask."
 
 6. **End with the re-rendered map and a next-step suggestion.** Show the
-   updated ASCII 2x2 (from the cartographer's response) and suggest the next
+   updated terminal briefing (from the cartographer's response) and suggest the next
    technique -- usually `/interview` to resolve the newly-surfaced
    known-unknowns, one at a time.
 
