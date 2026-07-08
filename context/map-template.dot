@@ -1,0 +1,58 @@
+digraph UnknownsMap {
+  // .ai/unknowns-map.dot -- the living artifact every pipeline stage and
+  // every technique (blindspot, interview, prototype fan-out, quiz) reads
+  // and writes. Seed a fresh copy of this template per task, then replace
+  // the placeholder node in each quadrant with the real unknowns you find.
+  //
+  // Node label schema (see unknowns:context/unknowns-matrix.md for the
+  // full spec):
+  //   label="<short description>\n[quadrant=kk|ku|uk|uu, status=given|open|resolved, severity=low|med|high]"
+  //
+  // Reclassification edges (dashed) record which technique moved a node
+  // from one quadrant/status to another. Never delete a node -- resolved
+  // is a status, not a disappearance.
+  graph [bgcolor="#F8F5EE", fontname="Georgia", fontsize=12,
+         labelloc=t, label="unknowns-map.dot -- task: <describe the task here>",
+         pad=0.4, nodesep=0.3, ranksep=0.45, compound=true]
+  node  [fontname="Georgia", fontsize=10, shape=box, style="rounded,filled", fillcolor="white", color="black"]
+  edge  [fontname="Georgia", fontsize=9]
+
+  subgraph cluster_kk {
+    label="KNOWN KNOWNS -- what's in your prompt"; color="black"; style="rounded"
+    // Placeholder: replace with what the user actually stated. status is
+    // almost always "given" for this quadrant -- these came from the prompt.
+    kk_placeholder [label="<what the user told you they want>\n[quadrant=kk, status=given]"]
+  }
+
+  subgraph cluster_ku {
+    label="KNOWN UNKNOWNS -- questions you know to ask"; color="black"; style="rounded"
+    // Placeholder: a question you know you haven't resolved yet.
+    // severity=high nodes get penwidth=2 + terracotta stroke (see below).
+    ku_placeholder [label="<an open question you know you have>\n[quadrant=ku, status=open, severity=med]", color="#C46A4A", penwidth=1]
+  }
+
+  subgraph cluster_uk {
+    label="UNKNOWN KNOWNS -- 'I'll know it when I see it'"; color="black"; style="rounded"
+    // Placeholder: criteria you can't articulate but would recognize.
+    // Typically resolved via prototype fan-out, not description.
+    uk_placeholder [label="<a preference you can't describe yet>\n[quadrant=uk, status=open]"]
+  }
+
+  subgraph cluster_uu {
+    // The danger quadrant: dark card treatment, per the article's convention.
+    // This is the ONLY cluster that uses the dark fill/font combination.
+    label="UNKNOWN UNKNOWNS -- what you never considered"; style="rounded,filled"; fillcolor="#2B2B28"; fontcolor="white"; color="#2B2B28"
+    // Placeholder: something neither party has considered yet. Surfaced by
+    // a blindspot pass, not something the user can name up front -- so this
+    // placeholder should almost always be empty until the cartographer or
+    // /blindspot skill populates it.
+    uu_placeholder [label="<a blindspot the user hasn't considered>\n[quadrant=uu, status=open, severity=med]", fillcolor="#3A3A36", fontcolor="#DDD8CC", color="#777770"]
+  }
+
+  // Reclassification edge convention (dashed, labeled with the technique
+  // that moved the node). Delete these example edges once real nodes
+  // exist -- they are illustrative only, wiring the placeholders together
+  // so `dot -Tcanon` has edges to validate.
+  uu_placeholder -> ku_placeholder [label="blindspot pass\nsurfaced it", style=dashed, color="#C46A4A", fontcolor="#C46A4A", constraint=false]
+  uk_placeholder -> ku_placeholder [label="prototype reaction\nnamed the criterion", style=dashed, color="#C46A4A", fontcolor="#C46A4A", constraint=false]
+}

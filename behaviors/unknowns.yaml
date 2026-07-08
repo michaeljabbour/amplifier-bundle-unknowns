@@ -1,0 +1,52 @@
+bundle:
+  name: unknowns-behavior
+  version: 0.1.0
+  description: |
+    Find and resolve unknowns -- the gap between prompt and territory.
+
+    Provides:
+    - unknowns-cartographer agent (context sink for the 4-quadrant matrix;
+      seeds, updates, and renders .ai/unknowns-map.dot)
+    - /interview mode (one-question-at-a-time, read-only tools)
+    - /blindspot skill (inline -- must converse with the user, so it cannot
+      be a fork skill)
+    - unknowns-lifecycle pipeline, invoked via attractor's run_pipeline tool
+
+# Explicit dependency on the modes behavior for namespace resolution
+# (modes:context/modes-instructions.md needs the "modes" namespace registered).
+# NOTE: Include the behavior, NOT the full amplifier-bundle-modes bundle --
+# the full bundle transitively includes foundation, which would re-run
+# foundation's own includes a second time.
+includes:
+  - bundle: git+https://github.com/microsoft/amplifier-bundle-modes@main#subdirectory=behaviors/modes.yaml
+
+# Mode hook so hooks-mode discovers modes/interview.md in this bundle.
+hooks:
+  - module: hooks-mode
+    source: git+https://github.com/microsoft/amplifier-bundle-modes@main#subdirectory=modules/hooks-mode
+    config:
+      search_paths:
+        - "@unknowns:modes"
+
+# Mode tool for programmatic transitions + skills tool for /blindspot.
+tools:
+  - module: tool-mode
+    source: git+https://github.com/microsoft/amplifier-bundle-modes@main#subdirectory=modules/tool-mode
+    config:
+      gate_policy: "warn"
+  - module: tool-skills
+    source: git+https://github.com/microsoft/amplifier-bundle-skills@main#subdirectory=modules/tool-skills
+    config:
+      skills:
+        - "@unknowns:skills"
+
+agents:
+  include:
+    - unknowns:unknowns-cartographer
+
+context:
+  include:
+    # Always-on standing order: map-vs-territory framing + triggers table.
+    - unknowns:context/unknowns-awareness.md
+    # Cross-bundle modes runtime guidance (same mechanism superpowers uses).
+    - modes:context/modes-instructions.md

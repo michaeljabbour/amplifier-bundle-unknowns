@@ -1,0 +1,11 @@
+# Runtime artifacts -- the living map is generated per-task, not versioned
+.ai/
+*.png
+*.svg
+
+# Python
+__pycache__/
+*.pyc
+
+# OS
+.DS_Store

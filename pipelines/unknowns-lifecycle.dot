@@ -1,0 +1,78 @@
+digraph UnknownsLifecycle {
+  // Attractor pipeline: close the map/territory gap for $goal
+  // Styling follows the article's design system: cream bg, serif,
+  // terracotta accent for human gates, grey for deterministic guards.
+  graph [goal="Close the map/territory gap for: $goal",
+         bgcolor="#F8F5EE", fontname="Georgia", fontsize=12,
+         labelloc=t, label="unknowns-lifecycle.dot — the map is the spine; every stage transforms .ai/unknowns-map.dot",
+         pad=0.4, nodesep=0.35, ranksep=0.5]
+  node  [fontname="Georgia", fontsize=11, style="filled", fillcolor="white", color="black"]
+  edge  [fontname="Georgia", fontsize=9, color="#555555"]
+
+  start [shape=Mdiamond, label="start", fillcolor="#EFEAE0"]
+  done  [shape=Msquare,  label="done\n(merge)", fillcolor="#DDE8D9"]
+
+  subgraph cluster_pre {
+    label="PRE-IMPLEMENTATION"; fontsize=13; color="#B9B2A4"; style="rounded"
+
+    cartography [shape=box, label="cartography  (LLM)\nseed .ai/unknowns-map.dot from prompt + repo scan\nrender ASCII 2x2 + PNG for the user"]
+    triage      [shape=parallelogram, fillcolor="#E8E4DA", tool_command="bash scripts/dominant_quadrant.sh .ai/unknowns-map.dot", label="triage  (shell guard)\nscripts/dominant_quadrant.sh\n→ uu | uk | ku | clear"]
+    blindspot   [shape=box, label="blindspot pass  (LLM)\nsurface unknown-unknowns\nadd nodes to map"]
+
+    fanout  [shape=component, fillcolor="#E8E4DA", label="prototype fan-out\nmax_parallel=4, wait_all"]
+    proto_a [shape=box, label="direction A"]
+    proto_b [shape=box, label="direction B"]
+    proto_c [shape=box, label="direction C"]
+    proto_d [shape=box, label="direction D"]
+    collect [shape=tripleoctagon, fillcolor="#E8E4DA", label="collect\nparallel.results"]
+    pick    [shape=hexagon, fillcolor="#E5A88E", label="HUMAN: react to prototypes"]
+
+    interview_gate [shape=hexagon, fillcolor="#E5A88E", label="HUMAN: open known-unknowns\n[I] interview me (pause → /interview mode)\n[P] proceed, log assumptions"]
+
+    plan      [shape=box, label="decision-first plan  (LLM)\nmap's open / high-severity\nunknowns lead the doc"]
+    plan_gate [shape=hexagon, fillcolor="#E5A88E", label="HUMAN: review plan"]
+  }
+
+  subgraph cluster_during {
+    label="DURING IMPLEMENTATION"; fontsize=13; color="#B9B2A4"; style="rounded"
+    implement [shape=box, label="implement  (LLM)\ndeviations → implementation-notes.md\nreclassify map nodes as territory is met"]
+  }
+
+  subgraph cluster_post {
+    label="POST-IMPLEMENTATION"; fontsize=13; color="#B9B2A4"; style="rounded"
+    quiz      [shape=box, label="quiz  (LLM)\nHTML change report + quiz\nbuilt from map deltas"]
+    quiz_gate [shape=hexagon, fillcolor="#E5A88E", label="HUMAN: answer the quiz\n(freeform response)"]
+    grade     [shape=box, label="grade  (LLM)\nreport_outcome: pass | fail"]
+    remediate [shape=box, label="remediate  (LLM)\nre-explain missed concepts"]
+  }
+
+  // ---- flow ----
+  start -> cartography
+  cartography -> triage
+
+  triage -> blindspot      [label="uu heavy",  condition="context.tool.last_line=uu"]
+  triage -> fanout         [label="uk heavy",  condition="context.tool.last_line=uk"]
+  triage -> interview_gate [label="ku heavy",  condition="context.tool.last_line=ku"]
+  triage -> plan           [label="clear",     condition="context.tool.last_line=clear", weight=10]
+
+  blindspot -> triage [label="re-triage", style=dashed, color="#C46A4A"]
+
+  fanout -> proto_a; fanout -> proto_b; fanout -> proto_c; fanout -> proto_d
+  proto_a -> collect; proto_b -> collect; proto_c -> collect; proto_d -> collect
+  collect -> pick
+  pick -> triage [label="[A]-[D] picked → map updated", style=dashed, color="#C46A4A"]
+  pick -> fanout [label="[N] none — re-fan"]
+
+  interview_gate -> plan [label="[P] proceed"]
+  interview_gate -> triage [label="[I] interviewed → map updated", style=dashed, color="#C46A4A"]
+
+  plan -> plan_gate
+  plan_gate -> implement [label="[A] approve"]
+  plan_gate -> plan      [label="[R] revise"]
+
+  implement -> quiz
+  quiz -> quiz_gate -> grade
+  grade -> done      [label="pass", condition="outcome=pass"]
+  grade -> remediate [label="fail", condition="outcome=fail"]
+  remediate -> quiz
+}
