@@ -18,7 +18,12 @@ Quadrant codes (see unknowns:context/unknowns-matrix.md):
 from __future__ import annotations
 
 import re
+import shutil
+import subprocess
+import tempfile
+import textwrap as _textwrap
 from dataclasses import dataclass
+from datetime import date
 from pathlib import Path
 
 from ._assets import map_template
@@ -165,7 +170,9 @@ def _cluster_span(lines: list[str], quadrant: str) -> tuple[int, int]:
     raise ValueError(f"unbalanced braces in cluster_{quadrant}")
 
 
-def _node_line(node_id: str, desc: str, quadrant: str, status: str, severity: str | None) -> str:
+def _node_line(
+    node_id: str, desc: str, quadrant: str, status: str, severity: str | None
+) -> str:
     attrs = f"quadrant={quadrant}, status={status}"
     if severity:
         attrs += f", severity={severity}"
@@ -226,7 +233,7 @@ def reclassify(
         if "severity=" in line:
             line = re.sub(r"severity=\w+", f"severity={severity}", line)
         else:
-            line = line.replace("]\"", f", severity={severity}]\"", 1)
+            line = line.replace(']"', f', severity={severity}]"', 1)
     if technique:
         line = line.rstrip()
         line += f"  // reclassified via {technique}"
@@ -245,7 +252,9 @@ def prune_placeholders(map_path: Path | str) -> int:
     path = Path(map_path)
     lines = path.read_text().splitlines()
     placeholder_ids = {
-        n.node_id for n in parse_map(path) if n.desc.startswith("<") and n.desc.endswith(">")
+        n.node_id
+        for n in parse_map(path)
+        if n.desc.startswith("<") and n.desc.endswith(">")
     }
     if not placeholder_ids:
         return 0
@@ -280,15 +289,13 @@ _SECTION_TITLES = {
 
 _NEXT_LINES = {
     "ku": 'Answer the numbered questions under "Open questions" -- '
-          'say "interview me" to go one at a time.',
+    'say "interview me" to go one at a time.',
     "uk": "These are preferences you'll recognize on sight but can't describe "
-          "yet -- ask for a quick prototype fan-out and react to options.",
+    "yet -- ask for a quick prototype fan-out and react to options.",
     "uu": 'Probe the blindspots before planning -- say "blindspot pass" to dig '
-          "into them; a high-severity one can reshape the whole approach.",
+    "into them; a high-severity one can reshape the whole approach.",
     "clear": "No open unknowns -- proceed to planning.",
 }
-
-import textwrap as _textwrap
 
 
 def _task_title(map_path: Path) -> str:
@@ -371,3 +378,393 @@ def render_ascii(map_path: Path | str = DEFAULT_MAP) -> str:
     lines.append("")
     lines.extend(_wrap_item(_NEXT_LINES[token], "NEXT -> "))
     return "\n".join(lines)
+
+
+# ---------------------------------------------------------------------------
+# Pretty presentation render -- DATA vs PRESENTATION split.
+#
+# Everything above this line owns the canonical machine format of
+# .ai/unknowns-map.dot and is untouched by what follows. The functions below
+# only ever READ the canonical map (via parse_map / quadrant_counts) and
+# produce a NEW, presentation-only DOT string -- a portrait 2x2 grid with
+# plain-language titles, a severity color ramp, and a legend. render_png
+# ALWAYS renders through render_pretty_dot; the canonical file is never
+# written to by anything in this section.
+# ---------------------------------------------------------------------------
+
+_PRETTY_WRAP_WIDTH = 38
+_PRETTY_WRAP_MAX_LINES = 4
+
+_SETTLED_FILL, _SETTLED_BORDER = "#DCE9DA", "#6B8E63"
+_OPEN_FILL, _OPEN_BORDER = "#FBF1DA", "#C9A55C"
+_HIGH_FILL, _HIGH_BORDER = "#F5DDA6", "#A87A1F"
+_CRIT_FILL, _CRIT_BORDER = "#EC9A79", "#A63A1C"
+_ACCEPTED_RISK_BORDER = "#B5552D"
+
+_CLUSTER_TITLES = {
+    "settled": "WHAT WE KNOW FOR SURE",
+    "open": "QUESTIONS WE'RE WORKING ON",
+    "recognize": "THINGS YOU'D RECOGNIZE ON SIGHT",
+    "blindspots": "BLINDSPOTS WE FOUND",
+}
+
+_EDGE_LINE_RE = re.compile(r"^\s*(\w+)\s*->\s*(\w+)\s*(?:\[(.*)\])?\s*$")
+
+
+def _severity_tier(severity: str | None) -> int:
+    """critical=0, high=1, everything else (med/low/None)=2."""
+    if severity == "critical":
+        return 0
+    if severity == "high":
+        return 1
+    return 2
+
+
+def _pretty_wrap(
+    text: str, width: int = _PRETTY_WRAP_WIDTH, max_lines: int = _PRETTY_WRAP_MAX_LINES
+) -> str:
+    """Word-wrap for a display label; ellipsize rather than overflow.
+
+    Normalizes any literal DOT line-break escape (``\\n``, two characters --
+    e.g. from a hand-written multi-line edge label) to a plain space FIRST,
+    so re-wrapping recomputes clean breaks instead of corrupting the escape
+    when backslashes are sanitized on the next line.
+    """
+    safe = text.replace("\\n", " ")
+    safe = safe.replace('"', "'").replace("\\", "/")
+    wrapped = _textwrap.wrap(safe, width=width) or [safe]
+    if len(wrapped) > max_lines:
+        wrapped = wrapped[:max_lines]
+        last = wrapped[-1].rstrip()
+        if len(last) >= width:
+            last = last[: width - 1].rstrip()
+        wrapped[-1] = last + "\u2026"
+    return "\\n".join(wrapped)
+
+
+def _is_accepted_risk(line: str) -> bool:
+    return "accepted_risk" in line
+
+
+def _node_style(n: Unknown, accepted_risk: bool) -> tuple[str, str, float | None]:
+    """(fillcolor, bordercolor, penwidth|None) for one node."""
+    if accepted_risk:
+        return _SETTLED_FILL, _ACCEPTED_RISK_BORDER, 2.0
+    if n.status != "open":
+        return _SETTLED_FILL, _SETTLED_BORDER, None
+    tier = _severity_tier(n.severity)
+    if tier == 0:
+        return _CRIT_FILL, _CRIT_BORDER, 3.0
+    if tier == 1:
+        return _HIGH_FILL, _HIGH_BORDER, 1.5
+    return _OPEN_FILL, _OPEN_BORDER, None
+
+
+def _pretty_node_decl(n: Unknown, accepted_risk: bool) -> str:
+    fill, border, penwidth = _node_style(n, accepted_risk)
+    attrs = f'label="{_pretty_wrap(n.desc)}", fillcolor="{fill}", color="{border}"'
+    if penwidth:
+        attrs += f", penwidth={penwidth}"
+    return f"    {n.node_id} [{attrs}]"
+
+
+def _sorted_by_tier(items: list[Unknown]) -> list[Unknown]:
+    """Critical first, then high, then normal -- stable, so file order is
+    preserved within a tier."""
+    return sorted(items, key=lambda n: _severity_tier(n.severity))
+
+
+def _chain(ids: list[str]) -> str | None:
+    if len(ids) < 2:
+        return None
+    return "  " + " -> ".join(ids) + " [style=invis, weight=100]"
+
+
+def _stitch(a: list[str], b: list[str]) -> str | None:
+    if not a or not b:
+        return None
+    return f"  {a[-1]} -> {b[0]} [style=invis, weight=100]"
+
+
+def _parse_real_edges(
+    lines: list[str], node_ids: set[str]
+) -> list[tuple[str, str, str | None]]:
+    """Non-invis edges between charted nodes in the CANONICAL file -- hand-added
+    reclassification/dependency edges. Carried into the pretty render as
+    dashed, non-constraining edges. Skips comments and anything referencing a
+    node id this map doesn't chart (e.g. an already-pruned placeholder)."""
+    edges: list[tuple[str, str, str | None]] = []
+    for line in lines:
+        stripped = line.strip()
+        if "->" not in stripped or stripped.startswith("//"):
+            continue
+        m = _EDGE_LINE_RE.match(line)
+        if not m:
+            continue
+        src, dst, attrs = m.group(1), m.group(2), m.group(3) or ""
+        if "style=invis" in attrs.replace(" ", ""):
+            continue
+        if src not in node_ids or dst not in node_ids:
+            continue
+        lm = re.search(r'label="([^"]*)"', attrs)
+        edges.append((src, dst, lm.group(1) if lm else None))
+    return edges
+
+
+def render_pretty_dot(map_path: Path | str = DEFAULT_MAP) -> str:
+    """Generate a beautiful, presentation-only DOT from the canonical map.
+
+    Reads .ai/unknowns-map.dot via the existing parse helpers (parse_map,
+    quadrant_counts) and NEVER writes to it. Every render (`unknowns png` /
+    render_png) goes through this function so every PNG this bundle produces
+    is a portrait 2x2 grid with plain-language titles, a severity color ramp,
+    and a legend -- never the raw machine DOT.
+
+    Layout: four display clusters (settled / open questions / recognize-on-
+    sight / blindspots) plus a legend, arranged as two invisible-spine columns
+    so graphviz lays it out as a readable portrait grid without `rankdir`.
+    """
+    path = Path(map_path)
+    raw_lines = path.read_text().splitlines() if path.exists() else []
+    nodes = parse_map(path)
+    node_ids = {n.node_id for n in nodes}
+    accepted: dict[str, bool] = {
+        n.node_id: (
+            _is_accepted_risk(raw_lines[n.line_no])
+            if n.line_no < len(raw_lines)
+            else False
+        )
+        for n in nodes
+    }
+
+    settled = _sorted_by_tier([n for n in nodes if n.status != "open"])
+    open_ku = _sorted_by_tier(
+        [n for n in nodes if n.quadrant == "ku" and n.status == "open"]
+    )
+    open_uk = _sorted_by_tier(
+        [n for n in nodes if n.quadrant == "uk" and n.status == "open"]
+    )
+    open_uu = _sorted_by_tier(
+        [n for n in nodes if n.quadrant == "uu" and n.status == "open"]
+    )
+
+    settled_ids = [n.node_id for n in settled]
+    open_ids = [n.node_id for n in open_ku]
+    recognize_ids = [n.node_id for n in open_uk]
+    blindspot_ids = [n.node_id for n in open_uu]
+
+    # Balance the two TOP clusters with invisible spacer nodes so the bottom
+    # clusters start on the same rank (per-column layout, forced without
+    # rankdir).
+    spacer_decls_settled: list[str] = []
+    spacer_decls_open: list[str] = []
+    spacer_ids_settled: list[str] = []
+    spacer_ids_open: list[str] = []
+    diff = len(settled_ids) - len(open_ids)
+    counter = 1
+    if diff > 0:
+        for _ in range(diff):
+            sid = f"_spacer_{counter}"
+            counter += 1
+            spacer_ids_open.append(sid)
+            spacer_decls_open.append(
+                f'    {sid} [style=invis, label="", fixedsize=true, width=0.01, height=0.01]'
+            )
+    elif diff < 0:
+        for _ in range(-diff):
+            sid = f"_spacer_{counter}"
+            counter += 1
+            spacer_ids_settled.append(sid)
+            spacer_decls_settled.append(
+                f'    {sid} [style=invis, label="", fixedsize=true, width=0.01, height=0.01]'
+            )
+
+    settled_col = settled_ids + spacer_ids_settled
+    open_col = open_ids + spacer_ids_open
+
+    counts = quadrant_counts(nodes)
+    total = sum(counts[q]["total"] for q in QUADRANTS)
+    open_n = sum(counts[q]["open"] for q in QUADRANTS)
+    title_task = _task_title(path)
+    title1 = f"Unknowns map -- {title_task}" if title_task else "Unknowns map"
+    title2 = (
+        f"Updated {date.today().isoformat()}  |  {open_n} open / {total} charted  |  "
+        "most important first in each box"
+    )
+
+    out: list[str] = []
+    out.append("digraph UnknownsMapPretty {")
+    out.append(
+        '  graph [bgcolor="#FCFBF8", fontname="Helvetica", fontsize=18,\n'
+        '         labelloc=t, fontcolor="#22221F",\n'
+        f'         label="{title1}\\n{title2}\\n ",\n'
+        "         pad=0.5, nodesep=0.4, ranksep=0.3, compound=true, newrank=true, splines=polyline]"
+    )
+    out.append(
+        '  node  [fontname="Helvetica", fontsize=11, shape=box, style="rounded,filled",\n'
+        '         fillcolor="white", color="#55524B", fontcolor="#22221F", width=3.5, margin="0.18,0.11"]'
+    )
+    out.append('  edge  [fontname="Helvetica", fontsize=9, color="#8A8478"]')
+    out.append("")
+
+    out.append("  subgraph cluster_settled {")
+    out.append(
+        f'    label="{_CLUSTER_TITLES["settled"]}"; fontname="Helvetica-Bold"; fontsize=13'
+    )
+    out.append(
+        '    style="rounded,filled"; fillcolor="#EFF4ED"; color="#9DB396"; margin=14'
+    )
+    out.append("")
+    for n in settled:
+        out.append(_pretty_node_decl(n, accepted.get(n.node_id, False)))
+    out.extend(spacer_decls_settled)
+    out.append("  }")
+    out.append("")
+
+    out.append("  subgraph cluster_open {")
+    out.append(
+        f'    label="{_CLUSTER_TITLES["open"]}"; fontname="Helvetica-Bold"; fontsize=13'
+    )
+    out.append(
+        '    style="rounded,filled"; fillcolor="#FAF4E4"; color="#C9A55C"; margin=14'
+    )
+    out.append("")
+    for n in open_ku:
+        out.append(_pretty_node_decl(n, accepted.get(n.node_id, False)))
+    out.extend(spacer_decls_open)
+    out.append("  }")
+    out.append("")
+
+    out.append("  subgraph cluster_recognize {")
+    out.append(
+        f'    label="{_CLUSTER_TITLES["recognize"]}"; fontname="Helvetica-Bold"; fontsize=13'
+    )
+    out.append(
+        '    style="rounded,filled"; fillcolor="#EFF1F4"; color="#9AA3B0"; margin=14'
+    )
+    out.append("")
+    for n in open_uk:
+        out.append(_pretty_node_decl(n, accepted.get(n.node_id, False)))
+    out.append("  }")
+    out.append("")
+
+    out.append("  subgraph cluster_blindspots {")
+    out.append(
+        f'    label="{_CLUSTER_TITLES["blindspots"]}"; fontname="Helvetica-Bold"; fontsize=13'
+    )
+    out.append(
+        '    style="rounded,filled"; fillcolor="#F6EBE5"; color="#C08A6E"; margin=14'
+    )
+    out.append("")
+    for n in open_uu:
+        out.append(_pretty_node_decl(n, accepted.get(n.node_id, False)))
+    out.append("  }")
+    out.append("")
+
+    out.append("  subgraph cluster_legend {")
+    out.append('    label="HOW TO READ THIS"; fontname="Helvetica-Bold"; fontsize=11')
+    out.append(
+        '    style="rounded,filled"; fillcolor="#F4F2EE"; color="#B9B2A4"; margin=10'
+    )
+    out.append('    node [fontsize=9, width=1.5, margin="0.08,0.05"]')
+    out.append(
+        f'    leg_a [label="Settled", fillcolor="{_SETTLED_FILL}", color="{_SETTLED_BORDER}"]'
+    )
+    out.append(
+        f'    leg_b [label="Open question", fillcolor="{_OPEN_FILL}", color="{_OPEN_BORDER}"]'
+    )
+    out.append(
+        f'    leg_c [label="Important", fillcolor="{_HIGH_FILL}", color="{_HIGH_BORDER}", penwidth=1.5]'
+    )
+    out.append(
+        f'    leg_d [label="Critical -- act first", fillcolor="{_CRIT_FILL}", '
+        f'color="{_CRIT_BORDER}", penwidth=3]'
+    )
+    out.append(
+        f'    leg_e [label="Accepted risk", fillcolor="{_SETTLED_FILL}", '
+        f'color="{_ACCEPTED_RISK_BORDER}", penwidth=2, width=2.1]'
+    )
+    out.append("  }")
+    out.append("")
+
+    out.append("  // ---- column spines (invisible) ----")
+    for chain_line in (
+        _chain(settled_col),
+        _chain(open_col),
+        _stitch(settled_col, recognize_ids),
+        _stitch(open_col, blindspot_ids),
+        _chain(recognize_ids),
+        _chain(blindspot_ids),
+    ):
+        if chain_line:
+            out.append(chain_line)
+
+    left_anchor = (
+        recognize_ids[-1]
+        if recognize_ids
+        else (settled_col[-1] if settled_col else None)
+    )
+    right_anchor = (
+        blindspot_ids[-1] if blindspot_ids else (open_col[-1] if open_col else None)
+    )
+    out.append("")
+    out.append("  // ---- legend placement ----")
+    if left_anchor:
+        out.append(f"  {left_anchor} -> leg_a [style=invis]")
+    if right_anchor:
+        out.append(f"  {right_anchor} -> leg_d [style=invis]")
+    out.append("  { rank=same; leg_a; leg_b; leg_c; leg_d; leg_e }")
+    out.append("  leg_a -> leg_b -> leg_c -> leg_d -> leg_e [style=invis]")
+
+    real_edges = _parse_real_edges(raw_lines, node_ids)
+    if real_edges:
+        out.append("")
+        out.append("  // ---- carried-over edges from the canonical map ----")
+        sev_by_id = {n.node_id: n.severity for n in nodes}
+        for src, dst, label in real_edges:
+            crit = sev_by_id.get(src) == "critical" or sev_by_id.get(dst) == "critical"
+            color = _CRIT_BORDER if crit else "#8A8478"
+            attrs = (
+                f'style=dashed, constraint=false, color="{color}", fontcolor="{color}"'
+            )
+            if label:
+                attrs = (
+                    f'label="{_pretty_wrap(label, width=26, max_lines=3)}", ' + attrs
+                )
+            out.append(f"  {src} -> {dst} [{attrs}]")
+
+    out.append("}")
+    return "\n".join(out) + "\n"
+
+
+def render_png(
+    map_path: Path | str = DEFAULT_MAP, out_path: Path | None = None
+) -> Path:
+    """Render the map to PNG via graphviz, ALWAYS through render_pretty_dot.
+
+    Writes the generated presentation DOT to a temp file (the canonical map
+    is only ever read, never written), shells out to `dot -Tpng`, and returns
+    the output path. Raises RuntimeError with a clean message if graphviz's
+    `dot` binary isn't on PATH.
+    """
+    if shutil.which("dot") is None:
+        raise RuntimeError(
+            "graphviz `dot` not found on PATH -- install graphviz to render PNGs"
+        )
+    path = Path(map_path)
+    dot_content = render_pretty_dot(path)
+    out = Path(out_path) if out_path else path.with_suffix(".png")
+    out.parent.mkdir(parents=True, exist_ok=True)
+    fd, tmp_name = tempfile.mkstemp(suffix=".dot")
+    tmp_path = Path(tmp_name)
+    try:
+        with open(fd, "w", encoding="utf-8") as tmp_file:
+            tmp_file.write(dot_content)
+        subprocess.run(
+            ["dot", "-Tpng", str(tmp_path), "-o", str(out)],
+            check=True,
+            capture_output=True,
+        )
+    finally:
+        tmp_path.unlink(missing_ok=True)
+    return out

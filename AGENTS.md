@@ -1,11 +1,17 @@
 # Working in amplifier-bundle-unknowns
 
-This is an Amplifier **bundle repo** — composition (YAML/markdown/DOT), not a
-Python package. There is no test suite; validation happens through bundle
-tooling.
+This is an Amplifier **bundle repo** — composition (YAML/markdown/DOT) —
+that also ships a real Python package (`unknowns_map`, L2/L4 in the
+leverage-levels table below). It has a test suite: run it with `pytest`
+from the repo root (`tests/` plus `modules/tool-unknowns/tests/`, wired via
+`[tool.pytest.ini_options]` in `pyproject.toml`).
 
 ## Validate
 
+- **Tests:** `pytest` from the repo root. `tests/test_map_ops.py` and
+  `tests/test_render_pretty.py` cover the deterministic core (parsing,
+  mutation, both renderers); `tests/test_triage_contract.py` guards the
+  Python/shell triage parity contract.
 - **Bundle validity:** run the `validate-bundle-repo` flow from an Amplifier
   session (it checks composition, namespaces, and auto-regenerates a stale
   `bundle.dot`).
@@ -46,9 +52,23 @@ Note: `.gitignore` excludes `*.png` but explicitly re-includes `bundle.png`.
   direct user of this bundle.
 - **The living map (`.ai/unknowns-map.dot`) is a runtime artifact** — it is
   generated per-task and gitignored. Never commit one.
-- **`docs/` is gitignored** — it holds a local reference copy of the original
-  article and images (not redistributed). Don't reference `docs/` paths from
-  bundle composition files.
+- **DATA vs PRESENTATION is a hard split.** The canonical map format (parsed
+  by `map_ops.parse_map` and mirrored by `scripts/dominant_quadrant.sh`)
+  never changes for rendering's sake. `render_pretty_dot` reads the
+  canonical map and generates a SEPARATE, presentation-only DOT (plain-
+  language cluster titles, portrait 2x2 grid, severity color ramp, legend);
+  `render_png` always renders through it. Never shell out to
+  `dot -Tpng .ai/unknowns-map.dot` directly — that renders the raw machine
+  DOT (jargon cluster names, dual-purpose labels) instead of the beautiful
+  presentation every consumer of this bundle expects. Regenerate the
+  reference example any time the render logic changes:
+  `python scripts/make_example_map.py` writes `docs/images/map-example.png`
+  (the one exception to `docs/` being gitignored — see `.gitignore`).
+- **`docs/` is gitignored, except `docs/images/`.** `docs/` holds a local
+  reference copy of the original article and images (not redistributed);
+  don't reference `docs/source` paths from bundle composition files.
+  `docs/images/` is the one carved-out exception — it holds versioned
+  example renders (e.g. `map-example.png`) referenced by `README.md`.
 - **`/blindspot` must remain an inline skill** (it converses with the user);
   do not convert it to a fork skill.
 - **`tool-skills` has NO @mention resolution** — a `config.skills:` entry like

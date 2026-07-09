@@ -11,6 +11,11 @@ skill and the wiki-weaver exemplar):
 Deterministic map logic lives HERE (map_ops); the LLM logic lives in the
 DOT pipeline + agent prompts. scripts/dominant_quadrant.sh is the
 zero-dependency shell mirror of ``dominant_quadrant`` (contract-tested).
+
+Rendering is a DATA vs PRESENTATION split: render_ascii and render_pretty_dot
+both read the canonical map and never write to it. render_png always renders
+through render_pretty_dot -- there is no path in this package that produces a
+PNG from the raw machine DOT.
 """
 
 from .engine_runner import load_pipeline, pipeline_path, run_lifecycle
@@ -26,6 +31,8 @@ from .map_ops import (
     quadrant_counts,
     reclassify,
     render_ascii,
+    render_png,
+    render_pretty_dot,
     seed_map,
 )
 
@@ -45,6 +52,8 @@ __all__ = [
     "quadrant_counts",
     "reclassify",
     "render_ascii",
+    "render_png",
+    "render_pretty_dot",
     "run_lifecycle",
     "seed_map",
     "__version__",

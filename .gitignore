@@ -6,8 +6,12 @@
 # Bundle documentation diagram (bundle-to-dot v3 convention) IS versioned
 !bundle.png
 
-# Local reference material (original article + images) -- not redistributed
-docs/
+# Local reference material (original article + images) -- not redistributed.
+# docs/images/ is the one carved-out exception: versioned example renders
+# referenced by README.md (regenerate via scripts/make_example_map.py).
+docs/*
+!docs/images/
+!docs/images/**
 
 # Python
 __pycache__/

@@ -47,8 +47,11 @@ def _cmd_triage(args: argparse.Namespace) -> int:
 
 def _cmd_add(args: argparse.Namespace) -> int:
     node_id = map_ops.add_unknown(
-        args.map_path, args.quadrant, args.text,
-        status=args.status, severity=args.severity,
+        args.map_path,
+        args.quadrant,
+        args.text,
+        status=args.status,
+        severity=args.severity,
     )
     print(f"added {node_id} [{args.quadrant}] {args.text}")
     return 0
@@ -56,9 +59,12 @@ def _cmd_add(args: argparse.Namespace) -> int:
 
 def _cmd_reclassify(args: argparse.Namespace) -> int:
     map_ops.reclassify(
-        args.map_path, args.node_id,
-        quadrant=args.quadrant, status=args.status,
-        severity=args.severity, technique=args.technique or "",
+        args.map_path,
+        args.node_id,
+        quadrant=args.quadrant,
+        status=args.status,
+        severity=args.severity,
+        technique=args.technique or "",
     )
     print(f"reclassified {args.node_id}")
     print(map_ops.render_ascii(args.map_path))
@@ -76,7 +82,12 @@ def _cmd_png(args: argparse.Namespace) -> int:
         print("graphviz `dot` not found on PATH -- install graphviz", file=sys.stderr)
         return 1
     out = args.out or str(Path(args.map_path).with_suffix(".png"))
-    subprocess.run(["dot", "-Tpng", args.map_path, "-o", out], check=True)
+    if args.plain:
+        # Debugging escape hatch: render the raw canonical DOT, unstyled.
+        # Every other path renders through map_ops.render_png (pretty always).
+        subprocess.run(["dot", "-Tpng", args.map_path, "-o", out], check=True)
+    else:
+        map_ops.render_png(args.map_path, Path(out))
     print(f"rendered {out}")
     return 0
 
@@ -103,7 +114,9 @@ def main(argv: list[str] | None = None) -> int:
         description="Deterministic operations on the unknowns map "
         "(.ai/unknowns-map.dot) plus the lifecycle pipeline seam.",
     )
-    parser.add_argument("--version", action="version", version=f"unknowns {__version__}")
+    parser.add_argument(
+        "--version", action="version", version=f"unknowns {__version__}"
+    )
     sub = parser.add_subparsers(dest="command", required=True)
 
     p = sub.add_parser("seed", help="seed a fresh map from the template")
@@ -112,7 +125,9 @@ def main(argv: list[str] | None = None) -> int:
     _add_map_arg(p)
     p.set_defaults(fn=_cmd_seed)
 
-    p = sub.add_parser("status", help="render the plain-language briefing view of the map")
+    p = sub.add_parser(
+        "status", help="render the plain-language briefing view of the map"
+    )
     _add_map_arg(p)
     p.set_defaults(fn=_cmd_status)
 
@@ -133,8 +148,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--quadrant", default=None, choices=list(map_ops.QUADRANTS))
     p.add_argument("--status", default=None, choices=["given", "open", "resolved"])
     p.add_argument("--severity", default=None, choices=["low", "med", "high"])
-    p.add_argument("--technique", default=None,
-                   help="what moved it (blindspot pass, interview, prototype, quiz)")
+    p.add_argument(
+        "--technique",
+        default=None,
+        help="what moved it (blindspot pass, interview, prototype, quiz)",
+    )
     _add_map_arg(p)
     p.set_defaults(fn=_cmd_reclassify)
 
@@ -142,8 +160,13 @@ def main(argv: list[str] | None = None) -> int:
     _add_map_arg(p)
     p.set_defaults(fn=_cmd_prune)
 
-    p = sub.add_parser("png", help="render the map to PNG via graphviz")
+    p = sub.add_parser("png", help="render the map to a beautiful PNG via graphviz")
     p.add_argument("--out", default=None)
+    p.add_argument(
+        "--plain",
+        action="store_true",
+        help="debugging escape hatch: render the raw canonical DOT, unstyled",
+    )
     _add_map_arg(p)
     p.set_defaults(fn=_cmd_png)
 
@@ -152,8 +175,11 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("--out", default=None, help="write to file instead of stdout")
     p.set_defaults(fn=_cmd_pipeline)
 
-    p = sub.add_parser("run", help="run the lifecycle via the attractor engine "
-                                   "(requires the [engine] extra + Amplifier install)")
+    p = sub.add_parser(
+        "run",
+        help="run the lifecycle via the attractor engine "
+        "(requires the [engine] extra + Amplifier install)",
+    )
     p.add_argument("goal")
     p.add_argument("--cwd", default=None)
     p.set_defaults(fn=_cmd_run)
@@ -161,7 +187,13 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
     try:
         return args.fn(args)
-    except (FileExistsError, FileNotFoundError, KeyError, ValueError, RuntimeError) as exc:
+    except (
+        FileExistsError,
+        FileNotFoundError,
+        KeyError,
+        ValueError,
+        RuntimeError,
+    ) as exc:
         print(f"error: {exc}", file=sys.stderr)
         return 1
 

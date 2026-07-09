@@ -1,184 +1,112 @@
 # amplifier-bundle-unknowns
 
-Find and resolve unknowns -- the gap between your prompt (the map) and the
-codebase/reality (the territory) -- before they get expensive to fix.
+Find and close the gap between what you asked for and what the work actually
+requires -- before that gap gets expensive.
 
-Implements the 4-quadrant unknowns matrix and lifecycle techniques from
-Thariq's ([@trq212](https://x.com/trq212)) article
-["A Field Guide to Fable: Finding Your Unknowns"](https://x.com/trq212/status/2073100352921215386)
-as a living Amplifier bundle: a DOT artifact (`.ai/unknowns-map.dot`) that
-every technique reads and writes, plus the techniques themselves wired as a
-mode, an inline skill, a context-sink agent, and an
-[attractor](https://github.com/microsoft/amplifier-bundle-attractor)
-pipeline.
+Think of your request as a map and the real codebase as the territory. They
+never match perfectly. This bundle charts where they differ and drives each
+difference to a decision, one cheap step at a time. Its real promise is
+discovery: it helps you see things about your own project you couldn't see on
+your own, even working with an AI. Avoiding costly rework is the floor;
+seeing what you were blind to is the point.
 
-**Status:** experimental, v0.1.0.
+![Example unknowns map](docs/images/map-example.png)
 
-## The map is the spine
+*Every run produces a map like this -- four boxes an executive can walk in 60 seconds.*
 
-Every stage -- blindspot pass, interview, prototype fan-out, plan, quiz --
-is defined as a transformation of one artifact: `.ai/unknowns-map.dot`. It's
-a DOT digraph with four quadrant clusters (known knowns, known unknowns,
-unknown knowns, unknown unknowns); each unknown is a node tagged
-`quadrant=`/`status=`/`severity=`, and dashed reclassification edges record
-which technique moved it. The `unknowns:unknowns-cartographer` agent owns
-this file: it seeds it from your prompt and a repo scan, renders it as an
-plain-language briefing in every response (so you see the territory *before* any
-technique runs), and updates it as unknowns get resolved. Nothing is ever
-deleted -- `resolved` is a status, not a disappearance; the history of how
-something moved through the quadrants is the point.
+## The four boxes
+
+The map sorts every gap into one of four boxes. You only ever act on the
+right-hand three; the first box is just what's already settled.
+
+| Box | What lives here |
+|---|---|
+| **What we know for sure** | Facts you've stated and questions already resolved. Nothing to do. |
+| **Questions we're working on** | Open questions you know you have (*known unknowns*) -- decide these next. |
+| **Things you'd recognize on sight** | Preferences you never wrote down but would spot instantly (*unknown knowns*). |
+| **Blindspots we found** | Things nobody thought to ask (*unknown unknowns*) -- the expensive surprises, caught early. |
 
 ## Quick start
 
-Compose the **behavior** into your own bundle. The behavior
-(`behaviors/unknowns.yaml`) is the reusable capability -- the agents, the
-`/interview` mode, the `/blindspot` and `/unknownfinder` skills, and the
-always-on awareness context -- and nothing else. It is the right include for
-almost every use:
-
-```yaml
-includes:
-  # foundation + attractor provide run_pipeline; this bundle depends on them.
-  - bundle: git+https://github.com/michaeljabbour/amplifier-bundle-unknowns@main#subdirectory=behaviors/unknowns.yaml
-```
-
-> **Include the behavior, not the root bundle.** `@main` (no fragment)
-> resolves the *root* bundle (`bundle.md`), which additionally pulls in
-> foundation and attractor's *interactive* entry point to stand up a
-> ready-to-run session. That is what you want when you run this bundle
-> **standalone** (below) -- but when you are **composing unknowns into an
-> existing bundle**, the root include re-runs foundation's own includes a
-> second time and drags in an interactive orchestrator you already have. The
-> `#subdirectory=behaviors/unknowns.yaml` form gives you the capability
-> without the entry-point baggage.
-
-### Run it standalone
-
-To use this bundle *as* your session (not composed into another), point
-Amplifier at the root bundle -- there the entry-point wiring is exactly what
-you want:
-
-```yaml
-includes:
-  - bundle: git+https://github.com/michaeljabbour/amplifier-bundle-unknowns@main
-```
-
-Then, in conversation:
+Install the bundle:
 
 ```
-/unknownfinder I'm adding a new OIDC auth provider but know nothing about this codebase's auth module.
+amplifier bundle add https://github.com/michaeljabbour/amplifier-bundle-unknowns
 ```
 
-One-shot full-spectrum discovery: returns the complete 4-quadrant map with
-prioritized unknowns and a recommended next technique. The same method is
-delegable from any composing session as the **`unknowns:unknownfinder`**
-agent:
+Then pick either of the two easiest first runs.
+
+**One-shot survey.** Point it at any goal and get the full map back with the
+gaps prioritized and a suggested next move:
 
 ```
-delegate(agent="unknowns:unknownfinder",
-         instruction="Find the unknowns for: <goal>")
+/unknownfinder Add a new OIDC auth provider to a codebase I don't know well
 ```
 
-Go deeper with the focused techniques:
+**Ask the cartographer.** In conversation, just ask the map-owner agent to
+chart a task for you:
 
 ```
-/blindspot
-"I'm adding a new OIDC auth provider but know nothing about this codebase's auth module."
+Chart the unknowns for: migrate the session store to Postgres
 ```
 
+The living map is written to `.ai/unknowns-map.dot`, and `unknowns png`
+renders the picture you saw above.
+
+> **Note:** composing this into your own bundle instead of running it
+> standalone? Include `behaviors/unknowns.yaml`, not the root bundle -- see
+> [`behaviors/unknowns.yaml`](behaviors/unknowns.yaml) for why.
+
+## What a session feels like
+
+- You seed the map with a goal -- one sentence about what you're trying to do.
+- The tool replies with a plain-language briefing: what's settled, what's
+  open, what it suspects you'll recognize, and what it thinks nobody asked.
+- It offers to go deeper -- an interview (one question at a time) or a
+  blindspot pass (it teaches you the area first, then names the traps).
+- As you answer, gaps move across the boxes and the map updates live. Nothing
+  is deleted; a resolved gap stays on the map marked resolved, so you can see
+  how you got there.
+- It ends every turn with one concrete next step, not a dashboard.
+
+A briefing reads like this:
+
 ```
-/interview
-```
+Blindspots we found (1)
+  * No agreed way to measure "did this help?" -- decide the success test
+    before the pilot, or you'll only know in hindsight.
 
-Run the full lifecycle (pre -> during -> post) via the pipeline tool that
-ships with attractor:
-
-```
-run_pipeline(dot_file="unknowns:pipelines/unknowns-lifecycle.dot", goal="Add a new OIDC auth provider")
-```
-
-Render the lifecycle diagram yourself at any time:
-
-```bash
-dot -Tpng pipelines/unknowns-lifecycle.dot -o pipelines/unknowns-lifecycle.png
-```
-
-## Leverage levels
-
-The lifecycle logic has ONE home -- the DOT pipeline + agent prompts (LLM
-logic) and the `unknowns_map` package (deterministic map operations). Every
-consumption surface is a thin adapter over that home, following the
-[wiki-weaver](https://github.com/microsoft/amplifier-app-wiki-weaver) pattern:
-
-| Level | Surface | Consumer |
-|---|---|---|
-| L1 | `pipelines/unknowns-lifecycle.dot` (+ `.resolver.yaml` sidecar) | attractor `run_pipeline`, Amplifier Resolve |
-| L2 | `unknowns_map` Python package (`pip install amplifier-unknowns`) | other codebases: `import unknowns_map` |
-| L3 | `modules/tool-unknowns` (agent-callable `unknowns_map` tool) | agents (wired into the cartographer) |
-| L4 | `unknowns` CLI (`pipx/uv tool install amplifier-unknowns`) | humans, scripts, and L1 guards |
-
-```bash
-uv tool install "git+https://github.com/michaeljabbour/amplifier-bundle-unknowns@main"
-unknowns seed "migrate session store to Postgres"   # fresh .ai/unknowns-map.dot
-unknowns add ku "which retention policy?" --severity high
-unknowns status                                      # terminal briefing
-unknowns triage                                      # uu | uk | ku | clear (guard contract)
+NEXT -> Answer the open questions, or say "interview me" to go one at a time.
 ```
 
-The deterministic core is stdlib-only. `scripts/dominant_quadrant.sh` remains
-the zero-dependency shell mirror of `unknowns triage` for bare environments --
-`tests/test_triage_contract.py` asserts the two never drift. The engine seam
-(`unknowns run <goal>`) needs the `[engine]` extra plus a configured Amplifier
-install.
+## Going deeper
+
+Five ways to run the same logic, from most guided to most raw:
+
+- **Lifecycle pipeline** -- the full pre/during/post workflow with human gates: [`pipelines/unknowns-lifecycle.dot`](pipelines/unknowns-lifecycle.dot).
+- **Amplifier Resolve** -- the pipeline registered in the dot-graph picker: [`pipelines/unknowns-lifecycle.resolver.yaml`](pipelines/unknowns-lifecycle.resolver.yaml).
+- **Python library** -- deterministic map operations you can import: [`unknowns_map/`](unknowns_map/) (`import unknowns_map`).
+- **Agent tool** -- the map operations exposed to agents: [`modules/tool-unknowns/`](modules/tool-unknowns/).
+- **CLI** -- for humans and scripts: `unknowns seed`, `unknowns add`, `unknowns status`.
 
 ## File tour
 
 | Path | What it is |
 |---|---|
-| `bundle.md` | Root bundle (standalone entry point): includes foundation + attractor's interactive entry point + this bundle's own behavior. **Composing into another bundle? Include `behaviors/unknowns.yaml` instead** -- see Quick start. |
-| `behaviors/unknowns.yaml` | The reusable capability: agent, mode wiring, skill wiring, always-on awareness context (the single source of the awareness file -- it is deliberately NOT also `@mention`ed in `bundle.md`) |
-| `context/unknowns-awareness.md` | Always-on, <500-token pointer: map-vs-territory framing + triggers table |
-| `context/unknowns-matrix.md` | Heavy methodology reference -- loaded only by the cartographer agent |
-| `context/map-template.dot` | Seed template for a fresh `.ai/unknowns-map.dot`, with the node-attr schema documented inline |
-| `context/ascii-render-spec.md` | Terminal briefing render spec (plain language, wrap-never-truncate, NEXT step), with a worked example |
-| `agents/unknowns-cartographer.md` | Context-sink agent that owns `.ai/unknowns-map.dot` |
-| `agents/unknownfinder.md` | One-shot full-spectrum discovery method (`unknowns:unknownfinder`) -- populates all four quadrants from a goal + territory survey |
-| `modes/interview.md` | `/interview` -- one-question-at-a-time, read-only tools, architecture-impact priority |
-| `skills/blindspot-pass/SKILL.md` | `/blindspot` -- inline skill (must converse with the user; cannot be a fork skill) |
-| `skills/unknownfinder/SKILL.md` | `/unknownfinder` -- thin slash alias for the `unknownfinder` agent (one method, two entry points -- the skill delegates, it does not re-implement) |
-| `pipelines/unknowns-lifecycle.dot` | The full pre/during/post lifecycle as an attractor pipeline |
-| `scripts/dominant_quadrant.sh` | Deterministic shell guard: counts open unknowns per quadrant, routes the pipeline's triage node (zero-dep mirror of `unknowns triage`, contract-tested) |
-| `pipelines/unknowns-lifecycle.resolver.yaml` | Resolve sidecar manifest: registers the lifecycle in the dot-graph resolver picker (L1) |
-| `unknowns_map/` | Python package: deterministic map ops + `engine_runner` seam + `unknowns` CLI (L2/L4) |
-| `modules/tool-unknowns/` | Agent-callable `unknowns_map` tool module over the lib (L3) |
-| `pyproject.toml` | Packaging for `amplifier-unknowns` (console script `unknowns`; wheel force-includes the pipeline + template assets) |
-| `tests/` | Deterministic-core tests incl. the shell/Python triage drift guard |
-| `AGENTS.md` | How to work in this repo: validation commands, diagram regeneration, known pitfalls |
-| `bundle.dot` / `bundle.png` | Auto-generated structural diagram of the bundle (bundle-to-dot v3; regenerate after structural changes -- see `AGENTS.md`) |
-| `docs/` | Local-only, **gitignored**: reference copy of the original article, its images, and the source DOT sketches (not redistributed) |
+| [`agents/unknowns-cartographer.md`](agents/unknowns-cartographer.md) | The agent that owns the map -- seeds it, renders the briefing, updates it. |
+| [`agents/unknownfinder.md`](agents/unknownfinder.md) | One-shot survey that fills all four boxes from a goal. |
+| [`skills/blindspot-pass/SKILL.md`](skills/blindspot-pass/SKILL.md) | `/blindspot` -- teaches the area, then names the traps. |
+| [`skills/unknownfinder/SKILL.md`](skills/unknownfinder/SKILL.md) | `/unknownfinder` -- slash entry point for the survey. |
+| [`modes/interview.md`](modes/interview.md) | `/interview` -- one question at a time, hardest-first. |
+| [`pipelines/unknowns-lifecycle.dot`](pipelines/unknowns-lifecycle.dot) | The full lifecycle as a runnable pipeline. |
+| [`context/map-template.dot`](context/map-template.dot) | Seed template for a fresh map, with the node schema inline. |
+| [`unknowns_map/`](unknowns_map/) | Python package: deterministic map ops + the `unknowns` CLI. |
 
 ## Composes with
 
-- **[superpowers](https://github.com/microsoft/amplifier-bundle-superpowers)** --
-  this bundle is an entry ramp before `/brainstorm` and an exit gate before
-  `/finish`, not a replacement for the TDD workflow.
-- **[stories](https://github.com/microsoft/amplifier-module-stories)** --
-  pitches and explainer artifacts (post-implementation technique) render
-  well as HTML stories.
-- **[design-intelligence](https://github.com/microsoft/amplifier-bundle-design-intelligence)** --
-  the prototype fan-out technique (unknown-knowns quadrant) benefits from
-  design-intelligence's HTML artifact conventions.
-- **[attractor](https://github.com/microsoft/amplifier-bundle-attractor)** --
-  hard dependency. Provides the `run_pipeline` tool, the human-gate
-  (`hexagon`) mechanism used by every gate in the lifecycle, and the DOT
-  execution engine itself.
-
-## Bundle structure at a glance
-
-![Bundle structure](bundle.png)
-
-Generated per the bundle-to-dot v3 convention (`bundle.dot` embeds a
-`source_hash` for freshness). Regeneration instructions live in `AGENTS.md`.
+- **[superpowers](https://github.com/microsoft/amplifier-bundle-superpowers)** -- an entry ramp before `/brainstorm` and an exit gate before `/finish`.
+- **[stories](https://github.com/microsoft/amplifier-module-stories)** -- turns the post-work pitch and explainer into HTML stories.
+- **[attractor](https://github.com/microsoft/amplifier-bundle-attractor)** -- hard dependency; provides the pipeline engine and the human-gate mechanism.
 
 ## Credit
 
@@ -187,5 +115,5 @@ Thariq ([@trq212](https://x.com/trq212)), Claude Code @ Anthropic --
 published July 3, 2026.
 
 A reference copy of the article and its images is kept locally in `docs/`
-(gitignored -- the original content is Thariq's and is not redistributed
-with this repo; follow the link above for the published version).
+(gitignored -- the original content is Thariq's and is not redistributed with
+this repo; follow the link above for the published version).

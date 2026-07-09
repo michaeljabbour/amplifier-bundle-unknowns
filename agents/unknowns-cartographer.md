@@ -86,10 +86,19 @@ dashboard, and the research intends a conversation.
 
 2. **Always render.** Every response includes the terminal briefing per
    `unknowns:context/ascii-render-spec.md`, built from the current state of
-   `.ai/unknowns-map.dot`. If `which dot` succeeds, also render a PNG:
-   `dot -Tpng .ai/unknowns-map.dot -o .ai/unknowns-map.png` and mention its
-   path. If graphviz isn't available, skip the PNG silently -- the ASCII
-   render is not optional, the PNG is a bonus.
+   `.ai/unknowns-map.dot`. If `which dot` succeeds, also render a PNG via
+   `unknowns_map.render_png(".ai/unknowns-map.dot")` (or the CLI's
+   `unknowns png`) and mention its path. **Never shell out to `dot -Tpng`
+   directly** -- the canonical DOT is a machine format (single-line nodes,
+   dual `quadrant=/status=/severity=` attrs) that the parser depends on, not
+   a presentation format; `render_png` always renders through
+   `render_pretty_dot`, which reads the canonical map and generates a
+   separate, beautiful, presentation-only DOT (plain-language cluster
+   titles, portrait 2x2 grid, severity color ramp, legend) without ever
+   writing to `.ai/unknowns-map.dot`. This canonical-vs-presentation split is
+   why agents can freely hand-edit the canonical map -- the renderer makes it
+   beautiful automatically, every time. If graphviz isn't available, skip the
+   PNG silently -- the ASCII render is not optional, the PNG is a bonus.
 
 3. **Subsequent invocations -- update and reclassify.** Add new nodes as
    unknowns surface. When a technique resolves or moves an unknown, update

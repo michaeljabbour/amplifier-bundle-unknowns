@@ -18,7 +18,9 @@ logger = logging.getLogger(__name__)
 
 try:  # installed wheel path (dependency declared in pyproject)
     import unknowns_map
-except ImportError:  # in-repo dev fallback: modules/tool-unknowns/pkg/__init__.py -> repo root
+except (
+    ImportError
+):  # in-repo dev fallback: modules/tool-unknowns/pkg/__init__.py -> repo root
     _repo_root = Path(__file__).resolve().parents[3]
     if (_repo_root / "unknowns_map" / "__init__.py").exists():
         sys.path.insert(0, str(_repo_root))
@@ -38,11 +40,11 @@ class UnknownsMapTool:
             "Deterministic operations on the unknowns map (.ai/unknowns-map.dot): "
             "seed a fresh map from the template, add/reclassify unknowns, triage "
             "the dominant quadrant (uu|uk|ku|clear), prune template placeholders, "
-            "and render the plain-language terminal briefing. Use for exact map "
-            "mutations and counts instead of hand-editing the DOT"
-            "counts instead of hand-editing the DOT; the LLM techniques "
-            "(blindspot pass, interview, quiz) decide WHAT to record -- this tool "
-            "records it."
+            "render the plain-language terminal briefing, and render a beautiful "
+            "portrait PNG (always presentation-styled -- never the raw machine DOT). "
+            "Use for exact map mutations and counts instead of hand-editing the DOT; "
+            "the LLM techniques (blindspot pass, interview, quiz) decide WHAT to "
+            "record -- this tool records it."
         )
 
     @property
@@ -52,7 +54,15 @@ class UnknownsMapTool:
             "properties": {
                 "operation": {
                     "type": "string",
-                    "enum": ["seed", "status", "triage", "add", "reclassify", "prune"],
+                    "enum": [
+                        "seed",
+                        "status",
+                        "triage",
+                        "add",
+                        "reclassify",
+                        "prune",
+                        "png",
+                    ],
                     "description": "Map operation to perform.",
                 },
                 "map_path": {
@@ -93,6 +103,11 @@ class UnknownsMapTool:
                 "technique": {
                     "type": "string",
                     "description": "reclassify: what moved it (blindspot pass, interview, ...).",
+                },
+                "out_path": {
+                    "type": "string",
+                    "description": "png: output path for the rendered PNG "
+                    "(default: map path with a .png suffix).",
                 },
             },
             "required": ["operation"],
@@ -143,16 +158,28 @@ class UnknownsMapTool:
             if op == "prune":
                 removed = unknowns_map.prune_placeholders(map_path)
                 return f"pruned {removed} placeholder line(s)"
+            if op == "png":
+                out_path = input_data.get("out_path")
+                out = unknowns_map.render_png(map_path, out_path)
+                return f"rendered {out}"
             raise ValueError(f"unknown operation: {op}")
 
         try:
             output = await asyncio.to_thread(_run)
             return ToolResult(success=True, output=output)
-        except (FileExistsError, FileNotFoundError, KeyError, ValueError) as exc:
+        except (
+            FileExistsError,
+            FileNotFoundError,
+            KeyError,
+            ValueError,
+            RuntimeError,
+        ) as exc:
             return ToolResult(success=False, output=f"error: {exc}")
 
 
-async def mount(coordinator: Any, config: dict[str, Any] | None = None) -> dict[str, Any]:
+async def mount(
+    coordinator: Any, config: dict[str, Any] | None = None
+) -> dict[str, Any]:
     """Mount the unknowns_map tool into the coordinator."""
     tool = UnknownsMapTool()
     await coordinator.mount("tools", tool, name=tool.name)
